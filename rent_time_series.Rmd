@@ -1,0 +1,90 @@
+---
+title: "DS4A rent plot"
+output: html_notebook
+---
+
+
+
+```{r}
+rent_total = read.csv('rent_total.csv')
+```
+
+```{r}
+#plot an example plot: let's say user inputted that they have a one bedroom
+#apartment in zip code 10075 
+zipcode = 11211
+num_bed = 1
+
+#select the correct region and number of bedrooms
+rent_thisapt = subset(rent_total, RegionName == zipcode & X..of.Bedrooms == num_bed)
+
+#drop unnecessary columns to make plotting easier
+#rent_thisapt = rent_thisapt.drop(rent_thisapt.columns[108:114], axis=1)
+rent_thisapt = subset(rent_thisapt, select = -c(X..of.Bedrooms, RegionName, X))
+rent_thisapt = subset(rent_thisapt, select = -c(109:114))
+
+```
+```{r}
+#drop unknown information at the beginning of the time series
+for (i in 1:(ncol(rent_thisapt)-1)){
+    if(rent_thisapt[1, i] > 0) {
+        first_nonzero_column_index = i
+        break
+    }
+}
+rent_thisapt = subset(rent_thisapt, select = -c(1:i-1))
+```
+
+```{r}
+plot(t(rent_thisapt), type="l", xaxt = 'n', xlab='', ylab='Median rent price/month ($)')
+title(main="Median rent price for similar properties")
+axis(1, at = seq(1, ncol(rent_thisapt), 6), substr(colnames(rent_thisapt), 2, 8)[seq(1, ncol(rent_thisapt), 6)], las = 2)
+```
+```{r}
+#decompose time series into overall trend, seasonality, and random noise
+time_series <- ts(t(rent_thisapt), start = c(2011, 3), frequency = 12)
+decompose = decompose(time_series, type='add')
+plot(decompose)
+```
+```{r}
+#plot overall trend
+plot(decompose$trend)
+
+#get a rough metric for the trend by fitting a linear regression, just to compare which 
+#regions are growing faster than others
+trend = as.data.frame(decompose$trend)
+lm = lm(trend[7:96,]~strtoi(row.names(trend))[7:96])
+slope = coef(lm)["strtoi(row.names(trend))[7:96]"]
+slope
+#the slope can be interpreted as the increase in median rent prices per month 
+```
+
+```{r}
+#try exponential forecasting model 
+fit <- HoltWinters(time_series)
+plot(fit)
+
+#predictive accuracy
+library(forecast)
+accuracy(forecast(fit, 12))
+
+#plot with forecasted values for next 12 months
+plot(forecast(fit, 12))
+axis(4)
+```
+```{r}
+#display predictions for next 3 months
+forecast(fit, 3)[4]
+```
+```{r}
+#Repeat the plot above, but with a more limited time scale to match the Airbnb data
+
+#remove all data before May 2017
+new_starting_index = grep("X2017.05", colnames(rent_thisapt))
+rent_thisapt = subset(rent_thisapt, select = -c(1:new_starting_index-1))
+```
+```{r}
+plot(t(rent_thisapt), type="l", xaxt = 'n', xlab='', ylab='Median rent price/month ($)')
+title(main="Median rent price for similar properties")
+axis(1, at = seq(1, ncol(rent_thisapt), 6), substr(colnames(rent_thisapt), 2, 8)[seq(1, ncol(rent_thisapt), 6)], las = 2)
+```
