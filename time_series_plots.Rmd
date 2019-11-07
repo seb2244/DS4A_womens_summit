@@ -1,0 +1,81 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+
+```{r}
+###rent plot
+
+#upload files
+rent_total = read.csv('rent_total.csv')
+
+#user input 
+zipcode = 10027
+num_bed = 1
+
+
+#create rent time series
+
+#select the correct region and number of bedrooms
+rent_thisapt = subset(rent_total, RegionName == zipcode & X..of.Bedrooms == num_bed)
+
+#drop unnecessary columns to make plotting easier
+#rent_thisapt = rent_thisapt.drop(rent_thisapt.columns[108:114], axis=1)
+rent_thisapt = subset(rent_thisapt, select = -c(X..of.Bedrooms, RegionName, X))
+rent_thisapt = subset(rent_thisapt, select = -c(109:114))
+
+#drop unknown information at the beginning of the time series
+for (i in 1:(ncol(rent_thisapt)-1)){
+  if(rent_thisapt[1, i] > 0) {
+    first_nonzero_column_index = i
+    break
+  }
+}
+rent_thisapt = subset(rent_thisapt, select = -c(1:i-1))
+
+#create time series and forecasting model
+time_series <- ts(t(rent_thisapt), start = c(2011, 3), frequency = 12)
+fit <- HoltWinters(time_series)
+plot(forecast(fit, 12), ylab = "Median monthly rent ($)", main = NA)
+title(main = "Forecasted rent for similar properties in the next 12 months")
+axis(4)
+```
+
+```{r}
+###airbnb plot
+
+#import files
+booked_rate = read.csv('airbnb_booked_rate.csv')
+monthly_price = read.csv('airbnb_monthly_price.csv')
+listings = read.csv('listing_new.csv')
+
+#find all the current listings with specified data
+this_air = subset(listings, bedrooms == num_bed & zipcode == this_zipcode & room_type == 'Entire home/apt')
+
+#pull out those listings from the time series data 
+this_air_month = subset(monthly_price, listing_id %in% this_air$id)
+
+#extract median values from those listings 
+medians = vector()
+count = 1
+for(i in unique(this_air_month$month_start)) {
+  medians[count] = median(subset(this_air_month, month_start == i & price != 0)$price)
+  count = count + 1
+}
+
+#get rid of null data 
+medians = medians[!is.nan(medians)]
+
+#create time series
+time_series <- ts(medians, start = c(2017, 5), frequency = 12)
+
+fit <- HoltWinters(time_series)
+
+#plot with forecasted values for next 12 months
+plot(forecast(fit, 12), ylab = "Median est. profit from Airbnb ($)", main = NA)
+title(main = "Forecasted Airbnb profit for similar properties in the next 12 months")
+axis(4)
+```
+
+
